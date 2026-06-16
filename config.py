@@ -21,10 +21,13 @@ class Config:
         if not self.nickname.isalpha():
             raise ValueError("nickname must contain only letters")
 
+        # Optional manual IP override — useful when auto-detection picks the wrong interface
+        self.ip: str = parser.get("machine", "ip", fallback="").strip()
+
         # [timing]
-        self.token_delay: float       = parser.getfloat("timing", "token_delay")
-        self.data_delay: float        = parser.getfloat("timing", "data_delay")
-        self.token_timeout: float     = parser.getfloat("timing", "token_timeout")
+        self.token_delay: float        = parser.getfloat("timing", "token_delay")
+        self.data_delay: float         = parser.getfloat("timing", "data_delay")
+        self.token_timeout: float      = parser.getfloat("timing", "token_timeout")
         self.min_token_interval: float = parser.getfloat("timing", "min_token_interval")
 
         # [faults]
@@ -34,7 +37,7 @@ class Config:
 
     def __repr__(self) -> str:
         return (
-            f"Config(nickname={self.nickname!r}, "
+            f"Config(nickname={self.nickname!r}, ip={self.ip!r}, "
             f"token_delay={self.token_delay}, data_delay={self.data_delay}, "
             f"token_timeout={self.token_timeout}, "
             f"min_token_interval={self.min_token_interval}, "
