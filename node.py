@@ -233,6 +233,12 @@ class Node:
         """Route an incoming UDP datagram to the appropriate handler."""
         src_ip = addr[0]
 
+        # Ignore ALL packets that originate from our own IP.
+        # This prevents loopback on multi-homed machines and self-delivery artifacts.
+        if src_ip == self.ip:
+            logger.debug("Ignoring own packet from %s", src_ip)
+            return
+
         if data.startswith(PKT_DISCOVER + ":"):
             self._handle_discover(data, src_ip)
 
