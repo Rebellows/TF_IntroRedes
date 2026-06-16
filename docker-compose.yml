@@ -1,0 +1,59 @@
+version: "3.9"
+
+# Creates a custom bridge network with broadcast support.
+# Three nodes (A, B, C) each run in their own container on the same subnet.
+# Broadcast on 172.20.0.255 reaches all three.
+
+networks:
+  ring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+services:
+
+  node-a:
+    build: .
+    container_name: ring-A
+    hostname: ring-A
+    environment:
+      NICKNAME: A
+      TOKEN_TIMEOUT: "5.0"
+      MIN_TOKEN_INTERVAL: "0.5"
+      ERROR_PROBABILITY: "0.0"
+    networks:
+      ring:
+        ipv4_address: 172.20.0.10
+    stdin_open: true   # keeps stdin open so you can type messages
+    tty: true
+
+  node-b:
+    build: .
+    container_name: ring-B
+    hostname: ring-B
+    environment:
+      NICKNAME: B
+      TOKEN_TIMEOUT: "5.0"
+      MIN_TOKEN_INTERVAL: "0.5"
+      ERROR_PROBABILITY: "0.1"   # 10% fault injection on B
+    networks:
+      ring:
+        ipv4_address: 172.20.0.11
+    stdin_open: true
+    tty: true
+
+  node-c:
+    build: .
+    container_name: ring-C
+    hostname: ring-C
+    environment:
+      NICKNAME: C
+      TOKEN_TIMEOUT: "5.0"
+      MIN_TOKEN_INTERVAL: "0.5"
+      ERROR_PROBABILITY: "0.0"
+    networks:
+      ring:
+        ipv4_address: 172.20.0.12
+    stdin_open: true
+    tty: true
