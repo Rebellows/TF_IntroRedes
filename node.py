@@ -56,12 +56,12 @@ class Node:
     def __init__(self, cfg: Config):
         self.cfg      = cfg
         self.nickname = cfg.nickname
-        self.ip       = get_own_ip()
+        self.ip       = cfg.ip if cfg.ip else get_own_ip()
 
         self.ring     = RingTopology(self.nickname, self.ip)
         self.out_q    = MessageQueue()
         self.seq_tr   = SequenceTracker()
-        self.net      = UDPSocket(on_receive=self._on_packet)
+        self.net      = UDPSocket(on_receive=self._on_packet, own_ip=self.ip)
 
         # Whether this node currently holds the token
         self._has_token      = False
@@ -128,20 +128,29 @@ class Node:
     # ==================================================================
 
     def _discover(self) -> None:
-        """Send DISCOVER broadcast and collect HELLOs for DISCOVER_WAIT seconds."""
+        """Send DISCOVER broadcast and collect HELLOs for DISCOVER_WAIT seconds.
+        
+        Sends DISCOVER repeatedly across the window and also sends a HELLO so
+        that machines which already finished their own discover window can still
+        learn about us via heartbeat/hello processing.
+        """
         while True:
             discover_pkt = f"{PKT_DISCOVER}:{self.nickname}:{self.ip}"
+
+            # Send DISCOVER + HELLO together so peers learn our IP immediately
             logger.info("Sending DISCOVER broadcast")
             self.net.send_broadcast(discover_pkt)
+            self._send_hello()
 
-            deadline = time.monotonic() + DISCOVER_WAIT
-            while time.monotonic() < deadline:
-                time.sleep(0.05)
+            # Wait half the window, repeat, then wait the rest
+            time.sleep(DISCOVER_WAIT / 2)
+            self.net.send_broadcast(discover_pkt)
+            self._send_hello()
+            time.sleep(DISCOVER_WAIT / 2)
 
             if self.ring.peer_count() > 0:
                 break   # at least one peer found
 
-            # No peers yet: wait longer before retrying
             logger.info("No peers found; retrying DISCOVER in %.0fs", DISCOVER_RETRY - DISCOVER_WAIT)
             time.sleep(DISCOVER_RETRY - DISCOVER_WAIT)
 
@@ -284,6 +293,13 @@ class Node:
         if ctrl and ctrl.is_active():
             if not ctrl.token_seen():
                 return   # duplicate — discard
+
+        # If we already sent a data packet and are waiting for it to return,
+        # forward the token without sending anything new.
+        if self._waiting_for_data:
+            logger.debug("Still waiting for data packet return — forwarding token")
+            self._send_token()
+            return
 
         time.sleep(self.cfg.token_delay)
 
