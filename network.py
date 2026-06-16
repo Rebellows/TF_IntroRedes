@@ -19,20 +19,35 @@ class UDPSocket:
 
     - Sends broadcast (DISCOVER / HELLO) and unicast (token / data).
     - Runs a background receiver thread that delivers packets to a callback.
+
+    own_ip: if provided, broadcast packets are sent bound to this source IP,
+    ensuring they go out on the correct interface on multi-homed machines.
     """
 
-    def __init__(self, on_receive):
+    def __init__(self, on_receive, own_ip: str = ""):
         """
         Parameters
         ----------
         on_receive : callable(data: str, addr: tuple)
             Called from the receiver thread for every incoming UDP datagram.
+        own_ip : str
+            The IP of the interface to use for sending. If empty, the OS chooses.
         """
         self._on_receive = on_receive
+        self._own_ip     = own_ip
+
+        # Main socket: receives all UDP on port 6000 (bound to all interfaces)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self._sock.bind(("", UDP_PORT))
+
+        # Separate send socket bound to own_ip so broadcasts exit the right interface
+        self._send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if own_ip:
+            self._send_sock.bind((own_ip, 0))   # 0 = let OS pick source port
 
         self._running = False
         self._thread  = threading.Thread(target=self._recv_loop, daemon=True,
@@ -52,12 +67,13 @@ class UDPSocket:
         """Signal the receive loop to stop."""
         self._running = False
         self._sock.close()
+        self._send_sock.close()
 
     def send_broadcast(self, message: str) -> None:
-        """Send *message* as a UDP broadcast."""
+        """Send *message* as a UDP broadcast via the configured interface."""
         data = message.encode("utf-8")
         try:
-            self._sock.sendto(data, (BROADCAST_ADDR, UDP_PORT))
+            self._send_sock.sendto(data, (BROADCAST_ADDR, UDP_PORT))
             logger.debug("BROADCAST → %s", message)
         except OSError as exc:
             logger.error("Broadcast failed: %s", exc)
@@ -66,7 +82,7 @@ class UDPSocket:
         """Send *message* to a specific *ip* via UDP unicast."""
         data = message.encode("utf-8")
         try:
-            self._sock.sendto(data, (ip, UDP_PORT))
+            self._send_sock.sendto(data, (ip, UDP_PORT))
             logger.debug("UNICAST → %s  %s", ip, message)
         except OSError as exc:
             logger.error("Unicast to %s failed: %s", ip, exc)
