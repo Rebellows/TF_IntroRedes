@@ -110,9 +110,11 @@ class Node:
         self._schedule_prune()
 
         # If we are the alphabetically first and have peers, become controller.
-        # _become_controller() will generate the token automatically.
-        if self.ring.is_controller() and self.ring.peer_count() > 0:
-            self._become_controller()
+        # Use _recheck_controller (not _become_controller directly) so we don't
+        # start a SECOND controller — and generate a SECOND token — when a HELLO
+        # received during discovery already made us the controller.
+        if self.ring.peer_count() > 0:
+            self._recheck_controller()
 
         # Run input loop in a background thread so docker exec -i works cleanly
         input_thread = threading.Thread(target=self._input_loop, daemon=True,
@@ -319,11 +321,9 @@ class Node:
             logger.warning("Token recebido sem retorno do pacote — perda detectada, retransmitindo")
             self._waiting_for_data = False
 
-        time.sleep(self.cfg.token_delay)
-
         pending = self.out_q.peek()
         if pending is None:
-            # Nothing to send — pass token along
+            # Nothing to send — pass token along (_send_token aplica token_delay)
             self._send_token()
             return
 
@@ -503,6 +503,7 @@ class Node:
                 continue
 
             dst, msg = parts
+            dst = dst.upper()   # apelidos são letras maiúsculas (A, B, C...) — evita "a" != "A"
             if ":" in dst or ":" in msg:
                 print("Error: destination and message must not contain ':'")
                 continue

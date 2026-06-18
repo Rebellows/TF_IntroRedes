@@ -17,7 +17,7 @@ class Config:
         parser.read(path)
 
         # [machine]
-        self.nickname: str = parser.get("machine", "nickname").strip()
+        self.nickname: str = parser.get("machine", "nickname").strip().upper()
         if not self.nickname.isalpha():
             raise ValueError("nickname must contain only letters")
 
