@@ -215,6 +215,19 @@ class Node:
 
     def _become_controller(self) -> None:
         """Start the token controller for this node and generate the first token."""
+        # Sanity check: o token volta à controladora a cada (nº de máquinas ×
+        # token_delay). Se min_token_interval for >= esse tempo, TODA volta
+        # legítima é confundida com duplicata e descartada → o anel trava.
+        expected_lap = self.ring.ring_size() * self.cfg.token_delay
+        if self.cfg.min_token_interval >= expected_lap:
+            logger.error(
+                "CONFIG RUIM: min_token_interval=%.2fs >= volta do token ~%.2fs "
+                "(%d máquinas × token_delay=%.2fs). O token legítimo será "
+                "descartado como duplicata! Aumente token_delay ou reduza "
+                "min_token_interval.",
+                self.cfg.min_token_interval, expected_lap,
+                self.ring.ring_size(), self.cfg.token_delay)
+
         ctrl = TokenController(
             token_timeout  = self.cfg.token_timeout,
             min_interval   = self.cfg.min_token_interval,
