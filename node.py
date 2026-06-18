@@ -310,12 +310,14 @@ class Node:
             if not ctrl.token_seen():
                 return   # duplicate — discard
 
-        # If we already sent a data packet and are waiting for it to return,
-        # forward the token without sending anything new.
+        # Se chegamos aqui com _waiting_for_data ainda True, o pacote de dados
+        # que enviamos nunca retornou (foi descartado por CRC/TTL em algum salto).
+        # Em operação normal a origem só repassa o token APÓS o retorno, então
+        # ver o token de novo aqui significa perda → liberar para retransmitir
+        # a mensagem do topo da fila (mesmo número de sequência).
         if self._waiting_for_data:
-            logger.debug("Still waiting for data packet return — forwarding token")
-            self._send_token()
-            return
+            logger.warning("Token recebido sem retorno do pacote — perda detectada, retransmitindo")
+            self._waiting_for_data = False
 
         time.sleep(self.cfg.token_delay)
 
@@ -351,27 +353,57 @@ class Node:
     # ------------------------------------------------------------------
 
     def _handle_data(self, packet: str) -> None:
-        """Route a data packet: intermediate, destination, or origin."""
-        # CRC check at every hop
-        if not verify_data_packet(packet):
-            logger.warning("Data packet CRC invalid — discarding (fires token timeout)")
-            return
+        """Route a data packet: intermediate, destination, or origin.
 
+        CRC handling differs by role (spec §No destino / §Na origem):
+          - destino  : CRC inválido → responder NAK (NÃO descarta)
+          - origem   : CRC inválido no retorno → tratar como NAK
+          - interm.  : CRC inválido → descartar (dispara timeout do token)
+        """
         parsed = parse_data_packet(packet)
         if parsed is None:
             logger.warning("Unparseable data packet — discarding")
             return
 
-        if parsed["ttl"] <= 0:
-            logger.warning("TTL=0 — discarding packet from %s", parsed["src"])
+        crc_ok = verify_data_packet(packet)
+
+        # --- Destino ---
+        if parsed["dst"] == self.nickname:
+            if not crc_ok:
+                self._reply_nak(parsed)
+                return
+            self._process_as_destination(packet, parsed)
             return
 
-        if parsed["dst"] == self.nickname:
-            self._process_as_destination(packet, parsed)
-        elif parsed["src"] == self.nickname:
+        # --- Origem (pacote voltou para nós) ---
+        if parsed["src"] == self.nickname:
+            if not crc_ok:
+                logger.warning("CRC inválido no retorno à origem — tratando como NAK")
+                parsed["flag"] = FLAG_NAK
             self._process_as_origin(packet, parsed)
-        else:
-            self._forward_intermediate(packet, parsed)
+            return
+
+        # --- Nó intermediário ---
+        if not crc_ok:
+            logger.warning("Data packet CRC inválido — descartando (dispara timeout do token)")
+            return
+        if parsed["ttl"] <= 0:
+            logger.warning("TTL=0 — descartando pacote de %s", parsed["src"])
+            return
+        self._forward_intermediate(packet, parsed)
+
+    def _reply_nak(self, parsed: dict) -> None:
+        """Destino recebeu pacote corrompido → responder NAK (reset TTL, novo CRC)."""
+        new_ttl = self.ring.ring_size() * 2
+        nak_pkt = build_data_packet(
+            src=parsed["src"], dst=parsed["dst"], flag=FLAG_NAK,
+            seq=parsed["seq"], ttl=new_ttl, message=parsed["message"],
+        )
+        succ_ip = self.ring.successor_ip()
+        if succ_ip:
+            self.net.send_unicast(succ_ip, nak_pkt)
+            logger.warning("CRC inválido no destino — enviando NAK seq=%d de %s",
+                           parsed["seq"], parsed["src"])
 
     def _forward_intermediate(self, packet: str, parsed: dict) -> None:
         """Decrement TTL, recompute CRC, forward to successor."""
@@ -389,10 +421,7 @@ class Node:
             self.net.send_unicast(succ_ip, new_pkt)
 
     def _process_as_destination(self, packet: str, parsed: dict) -> None:
-        """Handle a packet addressed to this node."""
-        # CRC already verified above; decide ACK or NAK
-        crc_ok = True   # we already checked; NAK only if CRC was bad (already discarded)
-
+        """Handle a packet addressed to this node (CRC já validado em _handle_data)."""
         new_ttl = self.ring.ring_size() * 2
 
         accepted = self.seq_tr.accept(parsed["src"], parsed["seq"])
