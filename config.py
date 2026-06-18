@@ -13,6 +13,10 @@ class Config:
         if not os.path.exists(path):
             raise FileNotFoundError(f"Config file not found: {path}")
 
+        # Caminho absoluto do arquivo REALMENTE aberto — ajuda a flagrar quando
+        # você editou uma cópia mas executou de outra pasta.
+        self.path: str = os.path.abspath(path)
+
         parser = configparser.ConfigParser()
         parser.read(path)
 

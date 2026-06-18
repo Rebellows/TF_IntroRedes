@@ -40,6 +40,7 @@ def main() -> None:
         print(f"Configuration error: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    print(f">>> Config lido de: {cfg.path}")
     print(f"Loaded config: {cfg}")
 
     node = Node(cfg)
