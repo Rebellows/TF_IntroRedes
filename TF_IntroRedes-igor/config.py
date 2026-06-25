@@ -5,6 +5,8 @@ config.py - Load and validate the configuration file.
 import configparser
 import os
 
+from constants import UDP_PORT as DEFAULT_PORT
+
 
 class Config:
     """Holds all runtime parameters read from config.ini."""
@@ -28,6 +30,10 @@ class Config:
         # Optional manual IP override — useful when auto-detection picks the wrong interface
         self.ip: str = parser.get("machine", "ip", fallback="").strip()
 
+        # [network] — porta UDP. Default 6000 (enunciado). Permite trocar para
+        # testes informais (ex.: 7070) sem mexer no código.
+        self.port: int = parser.getint("network", "port", fallback=DEFAULT_PORT)
+
         # [timing]
         self.token_delay: float        = parser.getfloat("timing", "token_delay")
         self.data_delay: float         = parser.getfloat("timing", "data_delay")
@@ -41,7 +47,7 @@ class Config:
 
     def __repr__(self) -> str:
         return (
-            f"Config(nickname={self.nickname!r}, ip={self.ip!r}, "
+            f"Config(nickname={self.nickname!r}, ip={self.ip!r}, port={self.port}, "
             f"token_delay={self.token_delay}, data_delay={self.data_delay}, "
             f"token_timeout={self.token_timeout}, "
             f"min_token_interval={self.min_token_interval}, "

@@ -20,6 +20,7 @@ from constants       import (PKT_DISCOVER, PKT_HELLO, PKT_TOKEN, PKT_DATA,
                               FLAG_NONE, FLAG_ACK, FLAG_NAK,
                               DISCOVER_WAIT, DISCOVER_RETRY,
                               HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT)
+import network
 from network         import UDPSocket
 from ring            import RingTopology
 from queue_manager   import MessageQueue, SequenceTracker
@@ -75,7 +76,9 @@ class Node:
         self.ring     = RingTopology(self.nickname, self.ip)
         self.out_q    = MessageQueue()
         self.seq_tr   = SequenceTracker()
-        self.net      = UDPSocket(on_receive=self._on_packet, own_ip=self.ip)
+        self.net      = UDPSocket(on_receive=self._on_packet, own_ip=self.ip,
+                                  port=cfg.port)
+        network.OWN_NICK = self.nickname   # suprime auto-eco no dump
 
         # Whether this node currently holds the token
         self._has_token      = False
@@ -378,6 +381,14 @@ class Node:
             return
 
         crc_ok = verify_data_packet(packet)
+
+        # Mostra o conteúdo de TODA mensagem que passa por nós (mesmo entre
+        # outras duas máquinas) — no anel todo pacote de dados dá a volta
+        # completa, então passa por aqui. Útil para "espiar" a rede toda.
+        crc_tag = "CRC ok" if crc_ok else "CRC INVALIDO"
+        print(f"[REDE] {parsed['src']} -> {parsed['dst']} | flag={parsed['flag']} "
+              f"seq={parsed['seq']} ttl={parsed['ttl']} | {crc_tag} | "
+              f"\"{parsed['message']}\"", flush=True)
 
         # --- Destino ---
         if parsed["dst"] == self.nickname:

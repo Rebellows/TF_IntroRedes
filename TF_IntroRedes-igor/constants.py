@@ -2,6 +2,8 @@
 constants.py - Shared constants for the ring network simulation.
 """
 
+# Porta padrão do enunciado (TF): TODA comunicação usa UDP 6000.
+# Pode ser sobrescrita pelo config.ini ([network] port) para testes informais.
 UDP_PORT = 7070
 BROADCAST_ADDR = "255.255.255.255"
 
