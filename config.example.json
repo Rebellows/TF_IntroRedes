@@ -1,0 +1,10 @@
+{
+  "apelido": "B",
+  "broadcastAddr": "255.255.255.255",
+  "porta": 6000,
+  "delayToken": 1000,
+  "delayDados": 500,
+  "probabilidadeErro": 0.1,
+  "timeoutToken": 8000,
+  "tempoMinimoToken": 500
+}
