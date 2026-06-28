@@ -1,8 +1,8 @@
-# Rede em Anel com Token (UDP) — Node.js
+# Rede em Anel com Token (UDP) - Node.js
 
 Implementação do trabalho de Fundamentos de Redes de Computadores: simulação
 de rede local em anel com passagem de token, usando UDP puro (módulo `dgram`
-nativo do Node.js — sem dependências externas).
+nativo do Node.js - sem dependências externas).
 
 ## Requisitos
 
@@ -50,7 +50,7 @@ Copie `config.example.json` para `config.json` em cada máquina e ajuste:
   (ex.: `192.168.1.255`) se a rede não repassar o broadcast geral.
 - `delayToken` / `delayDados`: atraso artificial (ms) antes de passar o
   token / enviar dados, para visualizar a circulação mais devagar.
-- `probabilidadeErro`: 0.0 a 1.0 — chance de corromper a mensagem antes do
+- `probabilidadeErro`: 0.0 a 1.0 - chance de corromper a mensagem antes do
   envio (a máquina recalcula o CRC sobre o conteúdo já corrompido, conforme
   especificação: "o CRC é sempre inserido após a possível corrupção").
 - `timeoutToken`: tempo (ms) que a controladora aguarda sem ver o token
@@ -207,12 +207,12 @@ node main.js config.json --debug
 
 Com `--debug` ativado, o nó exibe:
 
-- `[TX]` / `[RX]` — todo pacote enviado e recebido no wire, com tipo,
+- `[TX]` / `[RX]` - todo pacote enviado e recebido no wire, com tipo,
   endereço e conteúdo bruto. Formato idêntico ao da implementação Python
   para facilitar comparação lado a lado.
-- `[DEBUG]` — eventos internos: token recebido, token repassado (com IP
+- `[DEBUG]` - eventos internos: token recebido, token repassado (com IP
   do sucessor).
-- `[REDE]` — linha por pacote de dados que passa pelo nó, mostrando
+- `[REDE]` - linha por pacote de dados que passa pelo nó, mostrando
   origem, destino, flag, seq, TTL, status do CRC e conteúdo da mensagem.
   Também idêntico ao formato Python.
 
@@ -254,7 +254,7 @@ node main.js config.json --debug 2>&1 | Select-String -NotMatch "HELLO|DISCOVER"
 
 Por padrão, todas as instâncias usam a mesma porta `6000` e fazem `bind`
 com `reuseAddr`, então é possível abrir vários terminais no mesmo PC e
-rodar várias instâncias simultaneamente — elas vão se descobrir via
+rodar várias instâncias simultaneamente - elas vão se descobrir via
 broadcast na própria interface de rede local da máquina, exatamente como
 aconteceria entre PCs diferentes.
 
@@ -269,24 +269,3 @@ node main.js config.example.json C
 > em vez do adaptador LAN real. Isso faz com que pacotes unicast sejam
 > roteados para a interface errada e nunca cheguem ao destino. Nesse caso,
 > force o IP correto com o campo `"ip"` no config.
-
-## Notas de implementação (para o relatório)
-
-- **Concorrência**: Node.js é single-threaded com event loop. Não há
-  threads/locks explícitos; a "concorrência" entre recepção de pacotes,
-  timers (heartbeat, timeout do token, verificação de hosts) e leitura do
-  stdin é resolvida pelo próprio event loop, que serializa os callbacks.
-  Isso elimina condições de corrida clássicas de multithreading, ao custo
-  de qualquer operação bloqueante travar todo o processo (por isso toda
-  I/O aqui é assíncrona).
-- **CRC32**: implementação própria por tabela (sem depender de `zlib`),
-  parametrizada exatamente como CRC32/ISO-HDLC (poly `0xEDB88320` refletido,
-  seed `0xFFFFFFFF`, XOR final `0xFFFFFFFF`). Validado byte a byte contra
-  `binascii.crc32` do Python.
-- **Token corrompido (1000 → campos extras)**: qualquer pacote tipo `1000`
-  que não seja exatamente a string `"1000"` é descartado no primeiro salto,
-  nunca repassado — isso é o que intencionalmente aciona o timeout na
-  controladora.
-- **TTL**: a origem usa `2 × número de máquinas conhecidas`; cada salto
-  intermediário decrementa 1; o destino reseta para `2 × máquinas
-  conhecidas por ele` ao responder ACK/NAK.
