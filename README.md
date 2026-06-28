@@ -269,3 +269,9 @@ node main.js config.example.json C
 > em vez do adaptador LAN real. Isso faz com que pacotes unicast sejam
 > roteados para a interface errada e nunca cheguem ao destino. Nesse caso,
 > force o IP correto com o campo `"ip"` no config.
+
+## Instalando NVM para rodar Node sem sudo
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && source ~/.bashrc && nvm install 20 && nvm use 20
+```
