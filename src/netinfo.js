@@ -3,10 +3,10 @@
 const os = require('os');
 
 /**
- * Retorna o primeiro endereço IPv4 não-loopback encontrado nas
- * interfaces de rede da máquina. Usado para preencher o campo
- * <endereço IP da origem> nos pacotes DISCOVER/HELLO.
- */
+  * Retorna o endereço IPv4 local da máquina, ou 
+  * `127.0.0.1` se nenhuma interface for encontrada.
+  * Loopback e endereços internos são ignorados.
+  */
 function getLocalIPv4() {
   const interfaces = os.networkInterfaces();
   for (const nome of Object.keys(interfaces)) {
