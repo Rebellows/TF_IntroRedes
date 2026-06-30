@@ -1,14 +1,8 @@
 'use strict';
 
-/**
- * Implementação de CRC32/ISO-HDLC (CRC32b).
- * - Polinômio: 0xEDB88320 (forma refletida)
- * - Seed inicial: 0xFFFFFFFF
- * - XOR final: 0xFFFFFFFF
- * - Reflexão de entrada e saída
- *
- * Equivalente a binascii.crc32 (Python), java.util.zip.CRC32 (Java)
- * e crc32 do zlib (C). Não depende de bibliotecas externas.
+/** 
+ * shift de 8 bits (0xEDB88320), processa byte a byte, usando uma tabela pré-computada de 256 entradas.
+ * Finaliza invertendo os bits do resultado (XOR final com 0xFFFFFFFF).
  */
 
 // Tabela pré-computada (256 entradas) para acelerar o cálculo byte a byte.
