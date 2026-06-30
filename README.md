@@ -91,9 +91,21 @@ Cada instância:
 UDP na porta 6000 deve estar liberado para entrada/saída em todas as
 máquinas (broadcast e unicast).
 
-**Linux:**
+**Linux (ufw):**
 ```bash
 sudo ufw allow 6000/udp
+```
+
+**Linux (iptables, caso ufw não esteja disponível):**
+```bash
+sudo iptables -A INPUT -p udp --dport 6000 -j ACCEPT
+sudo iptables -A OUTPUT -p udp --sport 6000 -j ACCEPT
+```
+
+Para remover as regras do iptables após os testes:
+```bash
+sudo iptables -D INPUT -p udp --dport 6000 -j ACCEPT
+sudo iptables -D OUTPUT -p udp --sport 6000 -j ACCEPT
 ```
 
 **Windows (PowerShell como Administrador):**
@@ -117,6 +129,10 @@ Alternativamente, no Windows você pode liberar via interface gráfica:
 **Painel de Controle → Firewall do Windows Defender → Configurações avançadas
 → Regras de Entrada → Nova Regra → Porta → UDP → 6000 → Permitir conexão**.
 
+> Tanto `iptables` quanto `New-NetFirewallRule` exigem privilégios de
+> administrador/root. Sem isso, peça para o técnico do laboratório liberar
+> a porta, ou contorne via hotspot pessoal (sem firewall de rede no meio).
+
 ## Problemas com múltiplos adaptadores de rede (VirtualBox, VMware, etc.)
 
 Este é o problema mais comum em máquinas de desenvolvimento. Se a máquina
@@ -126,8 +142,8 @@ e enviar/receber pacotes pela interface errada.
 
 **Como identificar o problema:**
 
-No Windows, rode `ipconfig` e procure adaptadores extras além do seu adaptador
-LAN/Wi-Fi principal:
+**Windows** - rode `ipconfig` e procure adaptadores extras além do seu
+adaptador LAN/Wi-Fi principal:
 
 ```
 Ethernet adapter Ethernet:          ← adaptador real (use este IP)
@@ -135,6 +151,26 @@ Ethernet adapter Ethernet:          ← adaptador real (use este IP)
 
 Ethernet adapter Ethernet 3:        ← adaptador virtual (problema)
    IPv4 Address: 192.168.56.1
+```
+
+**Linux** - rode `ip addr` e procure interfaces como `vboxnet0`, `vmnet1`,
+`docker0`, etc.:
+
+```bash
+ip addr
+```
+
+```
+2: enp3s0: ...                      ← adaptador real (use este IP)
+    inet 192.168.0.58/24 ...
+
+5: vboxnet0: ...                    ← adaptador virtual (problema)
+    inet 192.168.56.1/24 ...
+```
+
+Atalho para checar rapidamente se existe um adaptador VirtualBox:
+```bash
+ip addr show | grep -A2 vboxnet
 ```
 
 Se `netinfo.js` detectar `192.168.56.1` em vez de `192.168.0.58`, os pacotes
@@ -164,7 +200,7 @@ unicast e os pacotes chegam na interface correta.
 
 **Alternativa: desabilitar o adaptador virtual temporariamente**
 
-No Windows (PowerShell como Administrador):
+**Windows (PowerShell como Administrador):**
 ```powershell
 # Verificar o nome exato do adaptador
 Get-NetAdapter | Select-Object Name, InterfaceDescription, Status
@@ -176,8 +212,23 @@ Disable-NetAdapter -Name "Ethernet 3" -Confirm:$false
 Enable-NetAdapter -Name "Ethernet 3"
 ```
 
-> **Nota:** desabilitar o adaptador virtual pode afetar VMs em execução.
-> Prefira usar o campo `"ip"` no config quando possível.
+**Linux:**
+```bash
+# Verificar interfaces existentes
+ip addr
+
+# Desabilitar (precisa de sudo)
+sudo ip link set vboxnet0 down
+
+# Reabilitar após os testes
+sudo ip link set vboxnet0 up
+```
+
+> **Nota:** desabilitar o adaptador virtual pode afetar VMs em execução, e
+> em ambos os sistemas exige privilégios administrativos (Administrador no
+> Windows, root/sudo no Linux). Sem esses privilégios — como costuma ser o
+> caso em laboratórios universitários — prefira usar o campo `"ip"` no
+> config, que não exige nenhuma permissão especial.
 
 ## Interagindo via terminal (stdin)
 
@@ -225,7 +276,7 @@ Em redes com múltiplos adaptadores ou durante a fase de descoberta, os
 pacotes HELLO e DISCOVER podem dominar o log. Para ver apenas TOKEN,
 DADOS e eventos internos:
 
-**Linux / macOS:**
+**Linux / macOS (grep):**
 ```bash
 node main.js config.json --debug | grep -v "HELLO\|DISCOVER"
 ```
@@ -270,8 +321,28 @@ node main.js config.example.json C
 > roteados para a interface errada e nunca cheguem ao destino. Nesse caso,
 > force o IP correto com o campo `"ip"` no config.
 
-## Instalando NVM para rodar Node sem sudo
+## Instalando Node.js sem privilégios de administrador (NVM)
 
+Em laboratórios sem acesso root/Administrador, use o NVM (Node Version
+Manager) para instalar o Node.js inteiramente na sua pasta de usuário.
+
+**Linux / macOS:**
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && source ~/.bashrc && nvm install 20 && nvm use 20
+```
+
+Se `curl` não estiver disponível, use `wget`:
+```bash
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && source ~/.bashrc && nvm install 20 && nvm use 20
+```
+
+**Windows (sem instalador, binário portátil):**
+
+1. Baixe o "Windows Binary (.zip)" em https://nodejs.org/en/download
+2. Extraia em qualquer pasta do seu usuário, ex.: `C:\Users\SeuNome\node`
+3. Adicione ao PATH apenas na sessão atual do terminal:
+
+```powershell
+$env:Path = "C:\Users\SeuNome\node;" + $env:Path
+node --version
 ```
